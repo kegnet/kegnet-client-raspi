@@ -1,0 +1,10 @@
+[Unit]
+Description=KegNet Flow Daemon for Pin %i
+ConditionPathExists=/usr/share/kegnet/conf/flowd%i.conf
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/share/kegnet/bin/flowd.sh %i
+Restart=always
+RestartSec=2s

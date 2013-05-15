@@ -1,0 +1,11 @@
+[Unit]
+Description=KegNet Client Pour Transmitter Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/share/kegnet/bin/pourd.sh
+Restart=always
+RestartSec=2s
+KillSignal=SIGINT
+
