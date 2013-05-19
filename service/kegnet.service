@@ -1,0 +1,10 @@
+[Unit]
+Description=KegNet Client Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/share/kegnet/bin/kegnet.sh
+Restart=always
+RestartSec=5s
+KillSignal=SIGINT
