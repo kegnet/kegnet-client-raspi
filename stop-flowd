@@ -1,3 +1,0 @@
-#!/bin/bash
-/usr/bin/systemctl stop flowd@0
-/usr/bin/systemctl stop flowd@3

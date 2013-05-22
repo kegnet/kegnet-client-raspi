@@ -1,0 +1,13 @@
+[Unit]
+Description=KegNet Client
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/share/kegnet-client/bin/client.sh
+Restart=always
+RestartSec=5s
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

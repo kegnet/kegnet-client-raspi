@@ -1,7 +1,5 @@
 import os
 
-CONFIG_DIR = '/usr/share/kegnet/conf'
-LOG_DIR = '/usr/share/kegnet/'
 DEVICES_LIST = '/sys/bus/w1/devices/w1_bus_master1/w1_master_slaves'
 DEVICES_DIR = '/sys/bus/w1/devices/'
 
@@ -60,4 +58,3 @@ if __name__ == "__main__":
     print u"{0} \N{DEGREE SIGN}F".format(f)
   except Exception as e:
     print e
-    

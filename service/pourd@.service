@@ -1,0 +1,14 @@
+[Unit]
+Description=KegNet Pour Daemon for Pin %i
+ConditionPathExists=/usr/share/kegnet-client/conf/pourd%i.conf
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/share/kegnet-client/bin/pourd.sh %i
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+

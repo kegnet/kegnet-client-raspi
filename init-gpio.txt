@@ -1,0 +1,22 @@
+# the gpio doesn't always initialize properly immediately after boot... 
+# these are all hacks to try to kick it alive 
+
+case $1 in
+  0) bcm_pin=17 ;;
+  3) bcm_pin=22 ;;
+  4) bcm_pin=23 ;;
+  5) bcm_pin=24 ;;
+  6) bcm_pin=25 ;;
+  *) die "Numeric argument between 3-6 required: $1 is not a valid pourd pin" ;;
+esac
+
+#sleep 15
+#/usr/local/bin/gpio unexport $bcm_pin
+#/usr/local/bin/gpio edge $bcm_pin rising
+#/usr/local/bin/gpio read $1 >> /dev/null 2>&1
+
+
+#!/bin/bash
+#sleep 15 
+#/usr/local/bin/gpio -v
+#/usr/local/bin/gpio unexportall

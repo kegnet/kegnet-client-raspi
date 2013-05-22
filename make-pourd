@@ -1,0 +1,1 @@
+gcc `pkg-config --cflags --libs glib-2.0` -lwiringPi src/pourd.c -o lib/pourd

@@ -11,9 +11,9 @@
 
 #define TIME_CHECK_TS 1262304000
 
-#define CONFIG_DIR "/usr/share/kegnet/conf"
-#define LOG_DIR "/usr/share/kegnet/spool"
-#define GROUP_NAME "flowd"
+#define CONFIG_DIR "/usr/share/kegnet-client/conf"
+#define LOG_DIR "/usr/share/kegnet-client/spool"
+#define GROUP_NAME "pourd"
 
 #define DEFAULT_POUR_DELAY_MS 1000
 #define DEFAULT_MIN_POUR_PULSES 200
@@ -33,7 +33,7 @@ void pulse()
 
 int main(int argc, const char* argv[])
 {
-  openlog("flowd", LOG_PID|LOG_CONS, LOG_USER);
+  openlog("pourd", LOG_PID|LOG_CONS, LOG_USER);
 
   int pin = -1;
 
@@ -42,8 +42,8 @@ int main(int argc, const char* argv[])
   }
 
   if (pin == -1 || argc != 2) {
-    syslog(LOG_ERR, "usage: flowd <wiringPi pin number (3-6)>\n");
-    printf("usage: flowd <wiringPi pin number (3-6)>\n");
+    syslog(LOG_ERR, "usage: pourd <wiringPi pin number (3-6)>\n");
+    printf("usage: pourd <wiringPi pin number (3-6)>\n");
     exit(EXIT_FAILURE);
   }
 
@@ -53,7 +53,7 @@ int main(int argc, const char* argv[])
   GError *error = NULL;
 
   char configFileName[1024];
-  sprintf(configFileName, "%s/flowd%s.conf", CONFIG_DIR, pinStr);
+  sprintf(configFileName, "%s/pourd%s.conf", CONFIG_DIR, pinStr);
 
   GKeyFile *keyfile;
   keyfile = g_key_file_new();
