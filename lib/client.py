@@ -28,8 +28,11 @@ retryCount = 0
 
 syslog.openlog("kegnet-client", logoption=syslog.LOG_PID|syslog.LOG_CONS, facility=syslog.LOG_USER)
 
-def log(level, message):
+def log(level, message, dumpStack=True):
   syslog.syslog(level, message)
+  
+  if not dumpStack:
+    return
   
   exctype, exception, exctraceback = sys.exc_info()
   if exception == None:
@@ -90,7 +93,7 @@ def getTemp():
       lastTempTs = now
       lastTemp = w1therm.readTemp()
     except Exception as e:
-      log(syslog.LOG_ERR, "failed to read temp: {0}".format(e))
+      log(syslog.LOG_ERR, "failed to read temp: {0}".format(e), False)
       return -1
   return lastTemp
   
@@ -106,8 +109,7 @@ def getDatastream(feed, name):
     datastream = feed.datastreams.get(name)
     return datastream
   except:
-    sys.exc_clear()
-    log(syslog.LOG_INFO, "creating new Xively dataStream '{0}'".format(name))
+    log(syslog.LOG_INFO, "creating new Xively dataStream '{0}'".format(name), False)
     
   try:
     datastream = feed.datastreams.create(name, tags=name)
@@ -263,7 +265,7 @@ def processRetries():
 def ping():
   temp = getTemp()
   
-  #log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
+  log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
 
   updated = updateDataStream(TEMP_DATASTREAM, datetime.utcnow(), temp)
   if not updated:
