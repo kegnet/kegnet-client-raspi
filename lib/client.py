@@ -5,19 +5,21 @@ import syslog
 import traceback
 import StringIO
 import pyinotify
-import xively
+import base64
+import uuid
+import requests
+import json
 from datetime import datetime
 from ConfigParser import SafeConfigParser
+import M2Crypto
+from M2Crypto import EVP
 from kegnet import w1therm
 
-TEMP_DATASTREAM = "temp"
-POUR_PULSES_DATASTREAM = "pour-pulses"
-POUR_TIME_DATASTREAM = "pour-time"
-
 TIME_CHECK_TS = 1262304000
-CONFIG_FILE = '/usr/share/kegnet-client/conf/client.conf'
-SPOOL_DIR = '/usr/share/kegnet-client/spool'
 MAX_RETRY_INTERVAL = 3600
+CONFIG_FILE = '/usr/share/kegnet-client/conf/client.conf'
+PEM_FILE = '/usr/share/kegnet-client/conf/privkey.pem'
+SPOOL_DIR = '/usr/share/kegnet-client/spool'
 
 lastTemp = 0
 lastTempTs = 0
@@ -38,7 +40,7 @@ def log(level, message, dumpStack=True):
   if exception == None:
     return
   
-  excclass = str(exception.__class__)
+  #excclass = str(exception.__class__)
   message = str(exception)
   
   excfd = StringIO.StringIO()
@@ -57,31 +59,31 @@ except Exception as e:
   sys.exit(1)
 
 try:
-  apiKey = config.get('xively', 'apiKey')
+  uuidString = config.get('KegNet', 'uuid')
 except Exception as e:
-  syslog.syslog(syslog.LOG_ERR, "required parameter '{0}' not found in '{1}'".format('apiKey', CONFIG_FILE))
+  log(syslog.LOG_ERR, "required parameter '{0}' not found in '{1}'".format('uuid', CONFIG_FILE))
   sys.exit(1)
 
 try:
-  feedId = config.get('xively', 'feedId')
+  serviceBaseURL = config.get('KegNet', 'serviceBaseURL')
 except Exception as e:
-  log(syslog.LOG_ERR, "required parameter '{0}' not found in '{1}'".format('feedId', CONFIG_FILE))
+  log(syslog.LOG_ERR, "required parameter '{0}' not found in '{1}'".format('serviceBaseURL', CONFIG_FILE))
+  sys.exit(1)
+  
+try:
+  uuid.UUID(uuidString)
+except Exception as e:
+  log(syslog.LOG_ERR, "invalid uuid format '{0}' found in '{1}'".format(uuidString, CONFIG_FILE))
+  sys.exit(1)
+
+try:
+  key = EVP.load_key(PEM_FILE)
+except Exception as e:
+  log(syslog.LOG_ERR, "failed to load private key from '{0}'".format(PEM_FILE))
   sys.exit(1)
 
 if not os.path.isdir(SPOOL_DIR):
   os.mkdir(SPOOL_DIR)
-
-try:
-  api = xively.XivelyAPIClient(apiKey)
-except Exception as e:
-  log(syslog.LOG_ERR, "failed to create Xively client with apiKey '{0}': {1}".format(apiKey, e))
-  sys.exit(1)
-
-try:
-  feed = api.feeds.get(feedId)
-except Exception as e:
-  log(syslog.LOG_ERR, "failed get Xively feed '{0}' with apiKey '{1}': {2}".format(feedId, apiKey, e))
-  sys.exit(1)
   
 def getTemp():
   global lastTemp, lastTempTs
@@ -102,46 +104,6 @@ def failPour(path):
   os.rename(path, newPath)
   log(syslog.LOG_INFO, "renamed failed pour to '{0}'".format(newPath))
 
-def getDatastream(feed, name):
-  global feedId, apiKey
-  
-  try:
-    datastream = feed.datastreams.get(name)
-    return datastream
-  except:
-    log(syslog.LOG_INFO, "creating new Xively dataStream '{0}'".format(name), False)
-    
-  try:
-    datastream = feed.datastreams.create(name, tags=name)
-  except:
-    log(syslog.LOG_INFO, "failed to create new Xively dataStream '{0}' for feedId '{1}' and apiKey '{2}': {3}".format(name, feedId, apiKey, e))
-    
-  return datastream
-  
-def updateDataStream(name, ts, value):
-  global feed;
-
-  try:
-    dataStream = getDatastream(feed, name)
-  except:
-    log(syslog.LOG_INFO, "failed to get Xively dataStream '{0}': {1}".format(name, e))
-    return False
-  
-  dataStream.max_value = None
-  dataStream.min_value = None
-  dataStream.current_value = value
-  dataStream.at = ts
-  
-  try:
-    dataStream.update()
-  except Exception as e:
-    log(syslog.LOG_ERR, "failed to update Xively dataStream '{0}': {1}".format(name, e))
-    return False
-  
-  log(syslog.LOG_DEBUG, "updated Xively dataStream '{0}' with value {1}".format(name, value))
-  
-  return True
-  
 def processPour(path):
   try:
     rawDataFile = open(path, "r")
@@ -154,27 +116,50 @@ def processPour(path):
   
   data = rawData.split(',')
   if len(data) != 4:
-    log(syslog.LOG_ERR, "invalid pour file '{0}': {1}".format(path, data))
+    log(syslog.LOG_ERR, "invalid pour '{0}': {1}".format(path, data))
     failPour(path);
     return False
   
   # validate this data?    
-  pin = int(data[0])
-  pulses = int(data[1])
-  et = float(data[2])
-  ts = datetime.utcfromtimestamp(float(data[3]))
+  pin = data[0]
+  pulses = data[1]
+  et = data[2]
+  ts = data[3]
   
-  pulsesUpdated = updateDataStream("{0}-{1}".format(POUR_PULSES_DATASTREAM, pin), ts, pulses)
-  if not pulsesUpdated:
-    log(syslog.LOG_ERR, "failed to update Xively with pour '{0}', will retry".format(path))
+  signData = "{0},{1},{2},{3},{4}".format(uuidString, pin, pulses, et, ts)
+  log(syslog.LOG_DEBUG, "pour data {0}".format(signData))
+  
+  try:
+    key.reset_context(md='sha256')
+    key.sign_init()
+    key.sign_update(signData)
+    signature = key.sign_final()
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to sign pour data '{0}' for pour '{1}'".format(signData, path))
+    failPour(path);
     return False
   
-  etUpdated = updateDataStream("{0}-{1}".format(POUR_TIME_DATASTREAM, pin), ts, et)
-  if not etUpdated:
-    log(syslog.LOG_ERR, "failed to update Xively with pour '{0}', will retry".format(path))
+  signatureBase64 = base64.b64encode(signature)
+  
+  payload={'id':uuidString, 'pin':pin, 'pulses':pulses, 'et':et, 'ts':ts, 'sig':signatureBase64}
+
+  try:
+    jsonPayload = json.dumps(payload)
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to convert pour data '{0}' to JSON for pour '{1}'".format(signData, path))
+    failPour(path);
+    return False
+  
+  pourURL = "{0}/pour".format(serviceBaseURL)
+
+  try:
+    response = requests.post(url=pourURL, data=jsonPayload, allow_redirects=True, timeout=10, verify=True)
+    response.raise_for_status()
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to transmit pour data '{0}' for pour '{1}', will retry".format(signData, path))
     return False
     
-  log(syslog.LOG_INFO, "successfully transmitted pour '{0}' to Xively".format(path))
+  log(syslog.LOG_INFO, "successfully transmitted pour '{0}' to KegNet".format(path))
   
   try:
     os.remove(path)
@@ -264,15 +249,42 @@ def processRetries():
 
 def ping():
   temp = getTemp()
+  ts = time.time()
   
   log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
-
-  updated = updateDataStream(TEMP_DATASTREAM, datetime.utcnow(), temp)
-  if not updated:
-    log(syslog.LOG_ERR, "failed to update Xively with temp '{0}'".format(temp))
+  
+  signData = "{0},{1},{2}".format(uuidString, temp, ts)
+  log(syslog.LOG_DEBUG, "ping data {0}".format(signData))
+  
+  try:
+    key.reset_context(md='sha256')
+    key.sign_init()
+    key.sign_update(signData)
+    signature = key.sign_final()
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to sign ping data '{0}'".format(signData))
     return False
   
-  log(syslog.LOG_INFO, "successfully transmitted temp '{0}' to Xively".format(temp))
+  signatureBase64 = base64.b64encode(signature)
+  
+  payload={'id':uuidString, 'temp':temp, 'ts':ts, 'sig':signatureBase64}
+
+  try:
+    jsonPayload = json.dumps(payload)
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to convert ping data '{0}'".format(signData))
+    return False
+  
+  pingURL = "{0}/ping".format(serviceBaseURL)
+
+  try:
+    response = requests.post(url=pingURL, data=jsonPayload, allow_redirects=True, timeout=10, verify=True)
+    response.raise_for_status()
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to transmit ping data '{0}'".format(signData))
+    return False
+    
+  log(syslog.LOG_INFO, "successfully transmitted ping temp '{0}' to KegNet".format(temp))  
   
   return True
 
@@ -283,7 +295,7 @@ if time.time() < TIME_CHECK_TS:
     #log(syslog.LOG_WARNING, "waiting for the system to synch the local clock...")
 
 time.sleep(10)
-log(syslog.LOG_NOTICE, "starting with feedId '{0}' apiKey '{1}'".format(feedId, apiKey))
+log(syslog.LOG_NOTICE, "starting with baseUrl '{0}' and uuid '{1}'".format(serviceBaseURL, uuid))
 
 try:
   while True:
