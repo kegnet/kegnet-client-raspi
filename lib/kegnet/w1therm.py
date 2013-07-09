@@ -46,15 +46,18 @@ def readTemp():
         if tempInt == 0:
           raise IOError("probe returned invalid value: {0}".format(tempStr))
 
-        c = tempInt * .001
-        f = c * 1.8000 + 32.00
-        return f
+        #c = tempInt * .001
+        #f = c * 1.8000 + 32.00
+        #return f
+        return tempInt
   
   raise IOError("temp value not found: {0} ".format(lines))
 
 if __name__ == "__main__":
   try:
-    f = readTemp()
+    tempInt = readTemp()
+    c = tempInt * .001
+    f = c * 1.8000 + 32.00
     print u"{0} \N{DEGREE SIGN}F".format(f)
   except Exception as e:
     print e

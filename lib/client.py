@@ -8,7 +8,6 @@ import pyinotify
 import base64
 import uuid
 import requests
-import json
 from datetime import datetime
 from ConfigParser import SafeConfigParser
 import M2Crypto
@@ -143,17 +142,10 @@ def processPour(path):
   
   payload={'id':uuidString, 'pin':pin, 'pulses':pulses, 'et':et, 'ts':ts, 'sig':signatureBase64}
 
-  try:
-    jsonPayload = json.dumps(payload)
-  except Exception as e:
-    log(syslog.LOG_ERR, "failed to convert pour data '{0}' to JSON for pour '{1}'".format(signData, path))
-    failPour(path);
-    return False
-  
   pourURL = "{0}/pour".format(serviceBaseURL)
 
   try:
-    response = requests.post(url=pourURL, data=jsonPayload, allow_redirects=True, timeout=10, verify=True)
+    response = requests.post(url=pourURL, data=payload, allow_redirects=True, timeout=10, verify=True)
     response.raise_for_status()
   except Exception as e:
     log(syslog.LOG_ERR, "failed to transmit pour data '{0}' for pour '{1}', will retry".format(signData, path))
@@ -249,7 +241,7 @@ def processRetries():
 
 def ping():
   temp = getTemp()
-  ts = time.time()
+  ts = int(round(time.time()))
   
   log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
   
@@ -269,16 +261,10 @@ def ping():
   
   payload={'id':uuidString, 'temp':temp, 'ts':ts, 'sig':signatureBase64}
 
-  try:
-    jsonPayload = json.dumps(payload)
-  except Exception as e:
-    log(syslog.LOG_ERR, "failed to convert ping data '{0}'".format(signData))
-    return False
-  
   pingURL = "{0}/ping".format(serviceBaseURL)
 
   try:
-    response = requests.post(url=pingURL, data=jsonPayload, allow_redirects=True, timeout=10, verify=True)
+    response = requests.post(url=pingURL, data=payload, allow_redirects=True, timeout=10, verify=True)
     response.raise_for_status()
   except Exception as e:
     log(syslog.LOG_ERR, "failed to transmit ping data '{0}'".format(signData))
@@ -295,7 +281,7 @@ if time.time() < TIME_CHECK_TS:
     #log(syslog.LOG_WARNING, "waiting for the system to synch the local clock...")
 
 time.sleep(10)
-log(syslog.LOG_NOTICE, "starting with baseUrl '{0}' and uuid '{1}'".format(serviceBaseURL, uuid))
+log(syslog.LOG_NOTICE, "starting with baseUrl '{0}' and uuid '{1}'".format(serviceBaseURL, uuidString))
 
 try:
   while True:
