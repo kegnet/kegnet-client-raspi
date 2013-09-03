@@ -32,16 +32,17 @@ syslog.openlog("kegnet-client", logoption=syslog.LOG_PID|syslog.LOG_CONS, facili
 def log(level, message, dumpStack=True):
   syslog.syslog(level, message)
   
-  if not dumpStack:
-    return
-  
   exctype, exception, exctraceback = sys.exc_info()
   if exception == None:
     return
   
   #excclass = str(exception.__class__)
-  message = str(exception)
+  cause = str(exception)
+  syslog.syslog(level, cause)
   
+  if not dumpStack:
+    return
+    
   excfd = StringIO.StringIO()
   traceback.print_exception(exctype, exception, exctraceback, None, excfd)
   for line in excfd.getvalue().split("\n"):
@@ -146,20 +147,32 @@ def processPour(path):
 
   try:
     response = requests.post(url=pourURL, data=payload, allow_redirects=True, timeout=10, verify=True)
-    response.raise_for_status()
   except Exception as e:
-    log(syslog.LOG_ERR, "failed to transmit pour data '{0}' for pour '{1}', will retry".format(signData, path))
+    log(syslog.LOG_ERR, "failed to transmit pour '{0}', will retry".format(path), False)
     return False
-    
-  log(syslog.LOG_INFO, "successfully transmitted pour '{0}' to KegNet".format(path))
   
-  try:
-    os.remove(path)
-  except Exception as e:
-    log(syslog.LOG_ERR, "failed to delete pour '{0}' will retry: {1}".format(path, e))
-    return False
+  remove = True
+  
+  if 200 <= response.status_code < 300:
+    log(syslog.LOG_INFO, "KegNet accepted pour '{0}'".format(path))
+  elif 500 <= response.status_code < 600:
+    log(syslog.LOG_INFO, "KegNet refused pour '{0}': {1}".format(path, response))
+    remove = False
+  else:
+    log(syslog.LOG_INFO, "KegNet failed pour '{0}': {1}".format(path, response))
+  
+  if remove:
+    try:
+      log(syslog.LOG_INFO, "deleting pour '{0}'".format(path))
+      os.remove(path)
+    except Exception as e:
+      log(syslog.LOG_ERR, "failed to delete pour '{0}' will retry: {1}".format(path, e))
+      return False
 
-  return True
+  if 200 <= response.status_code < 300:
+    return True
+  else:
+    return False
 
 class EventHandler(pyinotify.ProcessEvent):
   def process_IN_MOVED_TO(self, event):
@@ -265,14 +278,20 @@ def ping():
 
   try:
     response = requests.post(url=pingURL, data=payload, allow_redirects=True, timeout=10, verify=True)
-    response.raise_for_status()
   except Exception as e:
-    log(syslog.LOG_ERR, "failed to transmit ping data '{0}'".format(signData))
+    log(syslog.LOG_ERR, "failed to transmit ping '{0}'".format(signData), False)
     return False
-    
-  log(syslog.LOG_INFO, "successfully transmitted ping temp '{0}' to KegNet".format(temp))  
   
-  return True
+  if 200 <= response.status_code < 300:
+    log(syslog.LOG_INFO, "KegNet accepted ping '{0}'".format(signData))
+    return True
+  elif 500 <= response.status_code < 600:
+    log(syslog.LOG_INFO, "KegNet refused ping '{0}': {1}".format(signData, response))
+    return False
+  else:
+    log(syslog.LOG_INFO, "KegNet failed ping '{0}': {1}".format(signData, response))
+    return False
+
 
 if time.time() < TIME_CHECK_TS:
   log(syslog.LOG_WARNING, "waiting for the system to synch the local clock...")
