@@ -20,6 +20,7 @@ MAX_RETRY_INTERVAL = 3600
 CONFIG_FILE = '/usr/share/kegnet-client/conf/client.conf'
 PEM_FILE = '/usr/share/kegnet-client/conf/privkey.pem'
 SPOOL_DIR = '/usr/share/kegnet-client/spool'
+CA_BUNDLE = '/usr/share/kegnet-client/conf/ca.crt'
 
 lastTemp = 0
 lastTempTs = 0
@@ -155,7 +156,7 @@ def processPour(path):
   pourURL = "{0}/pour".format(serviceBaseURL)
 
   try:
-    response = requests.post(url=pourURL, data=payload, allow_redirects=True, timeout=10, verify=True)
+    response = requests.post(url=pourURL, data=payload, allow_redirects=True, timeout=10, verify=CA_BUNDLE)
   except Exception as e:
     log(syslog.LOG_ERR, "failed to transmit pour '{0}', will retry".format(path), False)
     return False
@@ -286,7 +287,7 @@ def ping():
   pingURL = "{0}/ping".format(serviceBaseURL)
 
   try:
-    response = requests.post(url=pingURL, data=payload, allow_redirects=True, timeout=10, verify=True)
+    response = requests.post(url=pingURL, data=payload, allow_redirects=True, timeout=10, verify=CA_BUNDLE)
   except Exception as e:
     log(syslog.LOG_ERR, "failed to transmit ping '{0}'".format(signData), False)
     return False
