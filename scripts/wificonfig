@@ -1,0 +1,84 @@
+#!/bin/bash
+
+if [ $EUID -ne 0 ]; then
+   echo "This script must be run as root"
+   exit 1
+fi
+
+if [ $# -lt 2 ]; then
+  echo "usage: wificonfig <wpa|wep|open> <ssid> [passphrase]"
+  exit 1
+fi
+
+if [ $# -gt 3 ]; then
+  echo "usage: wificonfig <wpa|wep|open> <ssid> [passphrase]"
+  exit 1
+fi
+
+type=$1
+ssid=$2
+
+if [ $type != "wep" -a $type != "wpa" -a $type != "open" ]; then
+  echo "usage: wificonfig <wpa|wep|open> <ssid> [passphrase]"
+  exit 1
+fi
+
+if [ -n "$3" ]; then
+  pass=$3
+fi
+
+if [ $type != "open" -a -z "$pass" ]; then
+  echo "ERROR: passphrase is required for type $type"
+  echo "usage: wificonfig <wpa|wep|open> <ssid> [passphrase]"
+  exit 1
+fi
+
+if [ $type == "wpa" ]; then
+  psk="$(wpa_passphrase "$ssid" "$pass" | grep 'psk' | grep -v '#' | cut -d'=' -f2)"
+  if [ -z "$psk" ]; then
+    echo "ERROR: failed to generate WPA passphrase"
+    echo "usage: wificonfig <wpa|wep|open> <ssid> [passphrase]"
+    exit 1
+  fi
+fi
+
+conf=/etc/wpa_supplicant.conf
+
+if [ -e "$conf" ]; then
+  ts=$(date +%Y%m%d%H%M%S)
+  bak="$conf.bak.$ts"
+  mv $conf $bak
+  if [ $? -ne 0 ]; then
+    echo "ERROR: failed to backup $conf"
+    exit 1
+  else
+    echo "Backed up $conf to $bak"
+  fi
+fi
+
+temp=$(mktemp)
+
+echo "ctrl_interface=/var/run/wpa_supplicant" >> $temp
+echo "network={" >> $temp
+echo "  ssid=\"$ssid\"" >> $temp
+
+if [ $type == "wpa" ]; then
+  echo "  psk=$psk" >> $temp
+elif [ $type == "wep" ]; then
+  echo "  wep_key0=\"$pass\"" >> $temp
+  echo "  key_mgmt=NONE" >> $temp
+else
+  echo "  key_mgmt=NONE" >> $temp
+fi
+
+echo "}" >> $temp
+
+mv $temp $conf
+chmod go-rwx $conf
+
+echo "Wrote $conf, restarting wpa_supplicant"
+
+systemctl restart wpa_supplicant
+
+exit 0
+

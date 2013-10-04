@@ -1,0 +1,82 @@
+body { 
+  background-color: white;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 16px;
+  color: #2e6e9e;
+  margin: 20px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td {
+  border: 1px solid #a6c9e2;
+  margin: 0;
+  padding: 5px;
+}
+
+hr {
+  border: 1px solid #a6c9e2;
+}
+
+input {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 16px;
+  color: #2e6e9e;
+}
+
+textarea {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+}
+
+
+.instructions {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 16px;
+  color: #2e6e9e;
+}
+
+.large {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 16px;
+  color: #2e6e9e;
+  font-weight: bold;
+}
+
+.title {
+  font-size:18px;
+  font-weight: bold;
+}
+
+.center {
+  text-align: center;
+  margin: auto;
+}
+
+.container {
+  width: 600px;
+  border: 1px solid #a6c9e2;
+  display: block;
+  margin: auto;
+  padding: 10px;
+}
+
+.buttonBar {
+  width: 100%;
+  display: block;
+  background-color: #a6c9e2;
+}
+
+.buttons {
+  display: block;
+  width: auto;
+  padding: 5px;
+  text-align: right;
+}
+
+.passwordBox {
+  font-weight: bold;
+}
