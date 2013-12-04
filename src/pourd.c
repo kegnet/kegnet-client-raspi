@@ -111,6 +111,11 @@ int main(int argc, const char* argv[])
 
   syslog(LOG_NOTICE, "pin%s starting for with pour_delay_ms %d, min_pour_pulses %d", pinStr, conf->pour_delay_ms, conf->min_pour_pulses);
 
+  if (piHiPri(99) != 0)
+  {
+    syslog(LOG_ERR, "pin%s wiringPi setting high-priority failed %s", pinStr, strerror(errno));
+  }
+
   if (wiringPiSetup() != 0)
   {
     syslog(LOG_ERR, "pin%s wiringPi setup failed %s", pinStr, strerror(errno));
@@ -139,28 +144,26 @@ int main(int argc, const char* argv[])
     
     int pollCount = 0;
 
-//    pinMode(LED_PIN, INPUT);
-    
     int priorLEDState = digitalRead(LED_PIN);
-    syslog(LOG_DEBUG, "LED%s current state is %s", LED_PIN, (priorLEDState > 0 ? "ON" : "OFF"));
+    syslog(LOG_DEBUG, "LED%d current state is %s", LED_PIN, (priorLEDState > 0 ? "ON" : "OFF"));
 
     while (globalCount > pulseCount || (delayCount * 50) < conf->pour_delay_ms)
     {
-      if (globalCount == pulseCount)
+      if (globalCount == pulseCount) {
         delayCount++;
-      else
+      } else {
         delayCount = 0;
+      }
 
       pulseCount = globalCount;
       syslog(LOG_DEBUG, "pin%s pouring... pulses=%d delay=%d", pinStr, pulseCount, delayCount);
       
-      digitalWrite(LED_PIN, (pollCount % 2 ? HIGH : LOW));
-      pollCount++;
-      
+      digitalWrite(LED_PIN, (pollCount++ % 2 ? 1 : 0));
+
       delay(50);
     }
 
-    syslog(LOG_DEBUG, "LED%s restoring state to %s", LED_PIN, priorLEDState > 0 ? "ON" : "OFF");
+    syslog(LOG_DEBUG, "LED%d restoring state to %s", LED_PIN, (priorLEDState > 0 ? "ON" : "OFF"));
     digitalWrite(LED_PIN, priorLEDState);
 
     globalCount = 0;
