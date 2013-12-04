@@ -18,6 +18,8 @@
 #define DEFAULT_POUR_DELAY_MS 1000
 #define DEFAULT_MIN_POUR_PULSES 200
 
+#define LED_PIN 2
+
 typedef struct
 {
   int pour_delay_ms;
@@ -120,7 +122,7 @@ int main(int argc, const char* argv[])
     syslog(LOG_ERR, "pin%s failed setup ISR %s", pinStr, strerror(errno));
     exit(EXIT_FAILURE);
   }
-
+  
   for (;;)
   {
     int pulseCount = 0;
@@ -134,8 +136,15 @@ int main(int argc, const char* argv[])
 
     time_t st;
     time(&st);
+    
+    int pollCount = 0;
 
-    while (globalCount > pulseCount || (delayCount * 100) < conf->pour_delay_ms)
+//    pinMode(LED_PIN, INPUT);
+    
+    int priorLEDState = digitalRead(LED_PIN);
+    syslog(LOG_DEBUG, "LED%s current state is %s", LED_PIN, (priorLEDState > 0 ? "ON" : "OFF"));
+
+    while (globalCount > pulseCount || (delayCount * 50) < conf->pour_delay_ms)
     {
       if (globalCount == pulseCount)
         delayCount++;
@@ -144,9 +153,15 @@ int main(int argc, const char* argv[])
 
       pulseCount = globalCount;
       syslog(LOG_DEBUG, "pin%s pouring... pulses=%d delay=%d", pinStr, pulseCount, delayCount);
-
-      delay(100);
+      
+      digitalWrite(LED_PIN, (pollCount % 2 ? HIGH : LOW));
+      pollCount++;
+      
+      delay(50);
     }
+
+    syslog(LOG_DEBUG, "LED%s restoring state to %s", LED_PIN, priorLEDState > 0 ? "ON" : "OFF");
+    digitalWrite(LED_PIN, priorLEDState);
 
     globalCount = 0;
 

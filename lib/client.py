@@ -8,6 +8,7 @@ import pyinotify
 import base64
 import uuid
 import requests
+import requests.exceptions
 from datetime import datetime
 from ConfigParser import SafeConfigParser
 import M2Crypto
@@ -109,6 +110,24 @@ def setLED(status):
     code = "on"
   call(["gpio", "write", "2", code])
   
+def post(url, payload):
+  tryCount = 1;
+  
+  while True:
+    try:
+      return requests.post(url=url, data=payload, allow_redirects=True, timeout=10, verify=CA_BUNDLE)
+    except requests.exceptions.ConnectionError as e:
+      log(syslog.LOG_INFO, "post to {0} failed on try {1}: ConnectionError".format(url, tryCount), False)
+      time.sleep(10)
+    except requests.exceptions.Timeout as e:
+      log(syslog.LOG_INFO, "post to {0} failed on try {1}: Timeout".format(url, tryCount), False)
+    except Exception as e:
+      raise
+    
+    tryCount = tryCount + 1
+    if (tryCount > 3):
+      raise
+  
 def failPour(path):
   newPath = path + ".fail"
   os.rename(path, newPath)
@@ -156,7 +175,7 @@ def processPour(path):
   pourURL = "{0}/pour".format(serviceBaseURL)
 
   try:
-    response = requests.post(url=pourURL, data=payload, allow_redirects=True, timeout=10, verify=CA_BUNDLE)
+    response = post(pourURL, payload)
   except Exception as e:
     log(syslog.LOG_ERR, "failed to transmit pour '{0}', will retry".format(path), False)
     return False
@@ -190,7 +209,7 @@ class EventHandler(pyinotify.ProcessEvent):
       path = event.pathname
       try:
         log(syslog.LOG_DEBUG, "processing new pour '{0}'".format(path))
-        processPour(path)
+        setLED(processPour(path))
       except Exception as e:
         log(syslog.LOG_ERR, "caught unexpected exception processing pour '{0}': {1}".format(path, e))
 
@@ -287,7 +306,7 @@ def ping():
   pingURL = "{0}/ping".format(serviceBaseURL)
 
   try:
-    response = requests.post(url=pingURL, data=payload, allow_redirects=True, timeout=10, verify=CA_BUNDLE)
+    response = post(pingURL, payload)
   except Exception as e:
     log(syslog.LOG_ERR, "failed to transmit ping '{0}'".format(signData), False)
     return False
