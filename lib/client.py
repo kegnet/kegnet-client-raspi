@@ -209,7 +209,7 @@ class EventHandler(pyinotify.ProcessEvent):
       path = event.pathname
       try:
         log(syslog.LOG_DEBUG, "processing new pour '{0}'".format(path))
-        setLED(processPour(path))
+        processPour(path)
       except Exception as e:
         log(syslog.LOG_ERR, "caught unexpected exception processing pour '{0}': {1}".format(path, e))
 
@@ -217,7 +217,7 @@ try:
   watchManager = pyinotify.WatchManager()
   watchManager.add_watch(SPOOL_DIR, pyinotify.IN_MOVED_TO)
   eventHandler = EventHandler()
-  notifier = pyinotify.Notifier(watchManager, eventHandler, timeout=60000)
+  notifier = pyinotify.Notifier(watchManager, eventHandler, timeout=600000)
 except Exception as e:
   log(syslog.LOG_ERR, "failed to initialize inotify WatchManager: {0}".format(e))
   sys.exit(1)
