@@ -18,6 +18,8 @@ from kegnet import w1therm
 
 TIME_CHECK_TS = 1262304000
 MAX_RETRY_INTERVAL = 3600
+PING_INTERVAL = 600
+POLL_INTERVAL = 60
 CONFIG_FILE = '/usr/share/kegnet-client/conf/client.conf'
 PEM_FILE = '/usr/share/kegnet-client/conf/privkey.pem'
 SPOOL_DIR = '/usr/share/kegnet-client/spool'
@@ -26,13 +28,18 @@ CA_BUNDLE = '/usr/share/kegnet-client/conf/ca.crt'
 lastTemp = 0
 lastTempTs = 0
 
-lastRetry = 0
-nextRetry = 0
-retryCount = 0
+nextPing = 0
+pingFailCount = 0
+
+nextPourRetry = 0
+retryPourCount = 0
 
 syslog.openlog("kegnet-client", logoption=syslog.LOG_PID|syslog.LOG_CONS, facility=syslog.LOG_USER)
 
 call(["gpio", "mode", "2", "output"])
+
+def currentTimeMillis():
+  return int(time.time())
 
 def log(level, message, dumpStack=True):
   syslog.syslog(level, message)
@@ -95,7 +102,7 @@ def getTemp():
   
   now = time.time()
   age = now - lastTempTs
-  if age > 60:
+  if age > POLL_INTERVAL:
     try:
       lastTempTs = now
       lastTemp = w1therm.readTemp()
@@ -104,12 +111,6 @@ def getTemp():
       return -1
   return lastTemp
 
-def setLED(status):
-  code = "off"
-  if (status):
-    code = "on"
-  call(["gpio", "write", "2", code])
-  
 def post(url, payload):
   tryCount = 1;
   
@@ -217,23 +218,24 @@ try:
   watchManager = pyinotify.WatchManager()
   watchManager.add_watch(SPOOL_DIR, pyinotify.IN_MOVED_TO)
   eventHandler = EventHandler()
-  notifier = pyinotify.Notifier(watchManager, eventHandler, timeout=600000)
+  pollTimeMs = POLL_INTERVAL * 1000
+  notifier = pyinotify.Notifier(watchManager, eventHandler, timeout=pollTimeMs)
 except Exception as e:
   log(syslog.LOG_ERR, "failed to initialize inotify WatchManager: {0}".format(e))
   sys.exit(1)
   
-def processRetries():
+def retryPours():
   log(syslog.LOG_DEBUG, "checking for pour retries...");
   
   fileList = os.listdir(SPOOL_DIR)
   if len(fileList) == 0:
     return
   
-  global nextRetry, lastRetry, retryCount
+  global nextPourRetry, retryPourCount
   
   now = time.time()
-  if (now < nextRetry):
-    log(syslog.LOG_DEBUG, "too early to retry on attempt {0}: {1} < {2}".format(retryCount+1, now, nextRetry));
+  if (now < nextPourRetry):
+    log(syslog.LOG_DEBUG, "too early to retry on attempt {0}: {1} < {2}".format(retryPourCount+1, now, nextPourRetry));
     return
   
   attemptCount = 0;
@@ -264,26 +266,49 @@ def processRetries():
   failCount = (attemptCount - successCount)
   
   if failCount  == 0:
-    log(syslog.LOG_WARNING, "all {0} retries transmitted successfully on attempt {1}".format(successCount, retryCount+1))
-    nextRetry = 0
-    lastRetry = 0
-    retryCount = 0
+    log(syslog.LOG_WARNING, "all {0} retries transmitted successfully on attempt {1}".format(successCount, retryPourCount+1))
+    nextPourRetry = 0
+    retryPourCount = 0
     return
   
   # it's important to have a back-off sequence, otherwise the server can 
-  # be overwhelmed by retries immediately when it starts up
+  # be overwhelmed by retries immediately when it starts up after a downtime
   
-  retryCount += 1
-  nextInterval = 30 * retryCount
+  retryPourCount += 1
+  nextInterval = POLL_INTERVAL * retryPourCount
   if (nextInterval > MAX_RETRY_INTERVAL):
     nextInterval = MAX_RETRY_INTERVAL
-  nextRetry = now + nextInterval
+  nextPourRetry = now + nextInterval
   
-  log(syslog.LOG_WARNING, "{0} of {1} retries failed on attempt {2}, will retry again in {3} seconds".format(failCount, attemptCount, retryCount, nextInterval))
+  log(syslog.LOG_WARNING, "{0} of {1} retries failed on attempt {2}, will retry again in {3} seconds".format(failCount, attemptCount, retryPourCount, nextInterval))
+
+def checkPing():
+  global nextPing, pingFailCount
+  
+  now = time.time()
+  if (now < nextPing):
+    log(syslog.LOG_DEBUG, "too early to ping for attempt {0}: {1} < {2}".format(pingFailCount, now, nextPing));
+    return
+  
+  if ping():
+    setLED(True)
+    nextPing = now + PING_INTERVAL
+    pingFailCount = 0
+    return
+  
+  setLED(False)
+  
+  pingFailCount += 1
+  nextInterval = POLL_INTERVAL * pingFailCount
+  if (nextInterval > PING_INTERVAL):
+    nextInterval = PING_INTERVAL
+  nextPing = now + nextInterval
+  
+  log(syslog.LOG_WARNING, "ping failed on attempt {0}, will try again in {1} seconds".format(pingFailCount, nextInterval))
 
 def ping():
   temp = getTemp()
-  ts = int(round(time.time()))
+  ts = int(round(time.time() * 1000))
   
   log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
   
@@ -316,10 +341,16 @@ def ping():
     return True
   elif 500 <= response.status_code < 600:
     log(syslog.LOG_INFO, "KegNet refused ping '{0}': {1}".format(signData, response))
-    return True
+    return False
   else:
     log(syslog.LOG_INFO, "KegNet failed ping '{0}': {1}".format(signData, response))
     return False
+  
+def setLED(status):
+  code = "off"
+  if (status):
+    code = "on"
+  call(["gpio", "write", "2", code])
 
 if time.time() < TIME_CHECK_TS:
   log(syslog.LOG_WARNING, "waiting for the system to synch the local clock...")
@@ -332,11 +363,11 @@ log(syslog.LOG_NOTICE, "starting with baseUrl '{0}' and uuid '{1}'".format(servi
 
 try:
   while True:
-    setLED(ping())
+    checkPing()
     while notifier.check_events():
       notifier.read_events()
       notifier.process_events()
-    processRetries()
+    retryPours()
 except KeyboardInterrupt as e:
   log(syslog.LOG_NOTICE, "shutting down")
   setLED(False)

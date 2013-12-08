@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <inttypes.h>
 
 #define TIME_CHECK_TS 1262304000
 
@@ -31,6 +33,13 @@ static volatile int globalCount = 0;
 void pulse()
 {
   globalCount++;
+}
+
+int64_t currentTimeMillis()
+{
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  return (now.tv_sec * INT64_C(1000)) +  (now.tv_usec / INT64_C(1000));
 }
 
 int main(int argc, const char* argv[])
@@ -139,8 +148,7 @@ int main(int argc, const char* argv[])
 
     pulseCount = globalCount;
 
-    time_t st;
-    time(&st);
+    int64_t st = currentTimeMillis();
     
     int pollCount = 0;
 
@@ -168,20 +176,18 @@ int main(int argc, const char* argv[])
 
     globalCount = 0;
 
-    time_t ft;
-    time(&ft);
-
-    int et = (ft - st);
+    int64_t ft = currentTimeMillis();
+    int64_t et = (ft - st);
 
     if (pulseCount < conf->min_pour_pulses) {
-      syslog(LOG_DEBUG, "pin%s NON POUR: %d pulses in %d seconds", pinStr, pulseCount, et);
+      syslog(LOG_DEBUG, "pin%s NON POUR: %d pulses in %"PRId64" ms", pinStr, pulseCount, et);
       continue;
     }
 
-    syslog(LOG_INFO, "pin%s POUR: %d pulses in %d seconds", pinStr, pulseCount, et);
+    syslog(LOG_INFO, "pin%s POUR: %d pulses in %"PRId64" ms", pinStr, pulseCount, et);
 
     char tempFileName[1024];
-    sprintf(tempFileName, "%s/%s%d.tmp", LOG_DIR, pinStr, st);
+    sprintf(tempFileName, "%s/%s%"PRId64".tmp", LOG_DIR, pinStr, st);
 
     syslog(LOG_DEBUG, "pin%s logging pour to %s", pinStr, tempFileName);
 
@@ -194,7 +200,7 @@ int main(int argc, const char* argv[])
     }
 
     int printCount = -1;
-    printCount = fprintf(tempFile, "%d,%d,%d,%d", pin, pulseCount, et, st);
+    printCount = fprintf(tempFile, "%d,%d,%"PRId64",%"PRId64, pin, pulseCount, et, st);
     if (printCount <= 0)
     {
       syslog(LOG_ERR, "pin%s failed to write %s %s", pinStr, tempFileName, strerror(errno));
@@ -204,7 +210,7 @@ int main(int argc, const char* argv[])
     fclose(tempFile);
 
     char logFileName[1024];
-    sprintf(logFileName, "%s/%s%d.pour", LOG_DIR, pinStr, st);
+    sprintf(logFileName, "%s/%s%"PRId64".pour", LOG_DIR, pinStr, st);
 
     int renameResult = 0;
     renameResult = rename(tempFileName, logFileName);
