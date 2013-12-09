@@ -9,6 +9,7 @@ import base64
 import uuid
 import requests
 import requests.exceptions
+import socket
 from datetime import datetime
 from ConfigParser import SafeConfigParser
 import M2Crypto
@@ -34,12 +35,15 @@ pingFailCount = 0
 nextPourRetry = 0
 retryPourCount = 0
 
+lastIPCheck = 0
+lastIP = 0
+
 syslog.openlog("kegnet-client", logoption=syslog.LOG_PID|syslog.LOG_CONS, facility=syslog.LOG_USER)
 
 call(["gpio", "mode", "2", "output"])
 
 def currentTimeMillis():
-  return int(time.time())
+  return int(round(time.time() * 1000))
 
 def log(level, message, dumpStack=True):
   syslog.syslog(level, message)
@@ -287,7 +291,6 @@ def checkPing():
   
   now = time.time()
   if (now < nextPing):
-    log(syslog.LOG_DEBUG, "too early to ping for attempt {0}: {1} < {2}".format(pingFailCount, now, nextPing));
     return
   
   if ping():
@@ -308,7 +311,7 @@ def checkPing():
 
 def ping():
   temp = getTemp()
-  ts = int(round(time.time() * 1000))
+  ts = currentTimeMillis()
   
   log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
   
@@ -358,12 +361,66 @@ if time.time() < TIME_CHECK_TS:
     time.sleep(10)
     #log(syslog.LOG_WARNING, "waiting for the system to synch the local clock...")
 
+def checkIP():
+  global lastIPCheck, lastIP
+  
+  now = time.time()
+  et = (now - lastIPCheck)
+  log(syslog.LOG_DEBUG, "lastIPCheck={0}, et={1}".format(lastIPCheck, et));
+  if (et < 600):
+    return
+  
+  ip = socket.gethostbyname(socket.gethostname())
+  if (ip != lastIP):
+    lastIP = ip
+    sendIP(ip)
+  
+  lastIPCheck = now
+
+def sendIP(ip):
+  ts = currentTimeMillis()
+
+  signData = "{0},{1},{2}".format(uuidString, ip, ts)
+  log(syslog.LOG_DEBUG, "ip data {0}".format(signData))
+  
+  try:
+    key.reset_context(md='sha256')
+    key.sign_init()
+    key.sign_update(signData)
+    signature = key.sign_final()
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to sign ip data '{0}'".format(signData))
+    return False
+  
+  signatureBase64 = base64.b64encode(signature)
+  
+  payload={'id':uuidString, 'ip':ip, 'ts':ts, 'sig':signatureBase64}
+
+  pingURL = "{0}/ip".format(serviceBaseURL)
+
+  try:
+    response = post(pingURL, payload)
+  except Exception as e:
+    log(syslog.LOG_ERR, "failed to transmit ip '{0}'".format(signData), False)
+    return False
+  
+  if 200 <= response.status_code < 300:
+    log(syslog.LOG_INFO, "KegNet accepted ip '{0}'".format(signData))
+    return True
+  elif 500 <= response.status_code < 600:
+    log(syslog.LOG_INFO, "KegNet refused ip '{0}': {1}".format(signData, response))
+    return False
+  else:
+    log(syslog.LOG_INFO, "KegNet failed ip '{0}': {1}".format(signData, response))
+    return False
+
 time.sleep(10)
 log(syslog.LOG_NOTICE, "starting with baseUrl '{0}' and uuid '{1}'".format(serviceBaseURL, uuidString))
 
 try:
   while True:
     checkPing()
+    checkIP()
     while notifier.check_events():
       notifier.read_events()
       notifier.process_events()
