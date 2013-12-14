@@ -10,29 +10,22 @@
       <div class="title">KegNet Client WiFi Configuration</div>
       <hr/>
       <br/>
-      <textarea rows="15" cols="72" wrap="hard" disabled="disabled">
+      <textarea wrap="hard" disabled="disabled" style="width:90%; height:120px;">
 <?php $ok = connect(); ?>
       </textarea>
       <br/>
       <br/>
       <div class="instructions">
 <?php if ($ok) { ?>
-        Wifi Setup Success!<br/>
+        Wifi Configuration OK!<br/>
         <br/>
-        <span class="large">Step 1.</span>Disconnect the power and ethernet network cable from your 
-        KegNet device, and then reconnect the power cable only.<br/>
-        <br/>
-        <span class="large">Step 2.</span >In 2-3 minutes, the green "CON" indicator 
-        light should illuminate indicating a successfull connection to the 
-        KegNet servers over Wifi.<br/>
-        <br/>
-        <div class="center">
-          <img alt="diagram" src="case_front_1.png" width="250" style="margin-left:auto;">
-        </div>
+        <span class="large">Click Next below to continue</span>
 <?php } else { ?>
         Wifi Configuration Failed!<br/>
         <br/>
-        Click BACK try again.  For addition help, please save and submit the 
+        <span class="large">Click BACK try again.</span><br/>
+        <br/>
+        For addition help, please save and submit the 
         above output to KegNet support.
 <?php } ?>
       </div>

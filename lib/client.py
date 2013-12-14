@@ -14,6 +14,7 @@ from datetime import datetime
 from ConfigParser import SafeConfigParser
 import M2Crypto
 from M2Crypto import EVP
+import subprocess
 from subprocess import call
 from kegnet import w1therm
 
@@ -229,7 +230,7 @@ except Exception as e:
   sys.exit(1)
   
 def retryPours():
-  log(syslog.LOG_DEBUG, "checking for pour retries...");
+  #log(syslog.LOG_DEBUG, "checking for pour retries...");
   
   fileList = os.listdir(SPOOL_DIR)
   if len(fileList) == 0:
@@ -316,7 +317,7 @@ def ping():
   log(syslog.LOG_DEBUG, "ping temp '{0}'".format(temp))
   
   signData = "{0},{1},{2}".format(uuidString, temp, ts)
-  log(syslog.LOG_DEBUG, "ping data {0}".format(signData))
+  #log(syslog.LOG_DEBUG, "ping data {0}".format(signData))
   
   try:
     key.reset_context(md='sha256')
@@ -366,22 +367,26 @@ def checkIP():
   
   now = time.time()
   et = (now - lastIPCheck)
-  log(syslog.LOG_DEBUG, "lastIPCheck={0}, et={1}".format(lastIPCheck, et));
-  if (et < 600):
+  if (et < 3600):
     return
-  
+   
+  DEVNULL = open(os.devnull, 'w')
+  if call(["ip", "link", "show", "wlan0"], stdout=DEVNULL, stderr=subprocess.STDOUT) != 0:
+    log(syslog.LOG_DEBUG, "no wifi adapter found")
+    return
+
   ip = socket.gethostbyname(socket.gethostname())
-  if (ip != lastIP):
-    lastIP = ip
-    sendIP(ip)
-  
+
+  lastIP = ip
   lastIPCheck = now
+
+  sendIP(ip)
 
 def sendIP(ip):
   ts = currentTimeMillis()
 
   signData = "{0},{1},{2}".format(uuidString, ip, ts)
-  log(syslog.LOG_DEBUG, "ip data {0}".format(signData))
+  #log(syslog.LOG_DEBUG, "ip data {0}".format(signData))
   
   try:
     key.reset_context(md='sha256')

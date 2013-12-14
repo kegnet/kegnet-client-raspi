@@ -73,12 +73,19 @@ fi
 
 echo "}" >> $temp
 
+# wpa_supplicant appears to rewrite wpa_supplicant.conf upon startup, so
+# as a result if power is cycled during this, the file ends up zero length
+# so I am purposely stopping wpa_supplicant before writing the config file,
+# it will be started on boot
+#systemctl stop wpa_supplicant
+
 mv $temp $conf
 chmod go-rwx $conf
 
-echo "Wrote $conf, restarting wpa_supplicant"
+sync
+sync
 
-systemctl restart wpa_supplicant
+echo "Wrote $conf, reboot to take effect"
 
 exit 0
 

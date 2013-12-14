@@ -28,7 +28,7 @@
     <br/>
     Diagnostic report:<br/>
     <textarea rows="10" cols="70" wrap="hard">
-iwconfig results:
+ip link results:
 <?php echo var_dump($checkResult) ?>
 iwlist results:
 <?php echo var_dump($scanResult) ?>
@@ -76,9 +76,6 @@ iwlist results:
   <?php } ?>
 <?php } ?>
   </div>
-  <pre>
-<?php echo var_dump($scanResult) ?>
-  </pre>
   </body>
 </html>
 <?php
@@ -86,7 +83,7 @@ iwlist results:
   {
     $lines = null;
     $ret = -1;
-    exec('sudo iwconfig wlan0', $lines, $ret);
+    exec('sudo ip link show wlan0', $lines, $ret);
     if ($ret != 0) {
       return array(false, $ret, $lines);
     } else {

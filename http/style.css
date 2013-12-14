@@ -2,7 +2,7 @@ body {
   background-color: white;
   font-family: "Courier New", Courier, monospace;
   font-size: 16px;
-  color: #2e6e9e;
+  color: #123464;
   margin: 20px;
 }
 
@@ -12,18 +12,31 @@ table {
 }
 
 td {
-  border: 1px solid #a6c9e2;
+  border: 1px solid #123464;
   margin: 0;
   padding: 5px;
 }
 
 hr {
-  border: 1px solid #a6c9e2;
+  border: 1px solid #123464;
 }
 
-input {
+input[type="submit"] {
   font-family: "Courier New", Courier, monospace;
   font-size: 16px;
+}
+
+input[type="submit"] {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 18px;
+  font-weight: bold;
+  color: #123464;
+  border: 1px solid #123464;
+  border-radius: 5px;
+  cursor: hand;
+}
+
+input[type="submit"]:hover {
   color: #2e6e9e;
 }
 
@@ -36,13 +49,13 @@ textarea {
 .instructions {
   font-family: "Courier New", Courier, monospace;
   font-size: 16px;
-  color: #2e6e9e;
+  color: #123464;
 }
 
 .large {
   font-family: "Courier New", Courier, monospace;
   font-size: 16px;
-  color: #2e6e9e;
+  color: #123464;
   font-weight: bold;
 }
 
@@ -57,8 +70,8 @@ textarea {
 }
 
 .container {
-  width: 600px;
-  border: 1px solid #a6c9e2;
+  width: 95%;
+  border: none;
   display: block;
   margin: auto;
   padding: 10px;
@@ -67,7 +80,7 @@ textarea {
 .buttonBar {
   width: 100%;
   display: block;
-  background-color: #a6c9e2;
+  border-top: 2px solid #123464;
 }
 
 .buttons {
