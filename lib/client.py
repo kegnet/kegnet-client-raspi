@@ -370,6 +370,8 @@ def checkIP():
   if (et < 3600):
     return
    
+  lastIPCheck = now
+
   DEVNULL = open(os.devnull, 'w')
   if call(["ip", "link", "show", "wlan0"], stdout=DEVNULL, stderr=subprocess.STDOUT) != 0:
     log(syslog.LOG_DEBUG, "no wifi adapter found")
@@ -378,7 +380,6 @@ def checkIP():
   ip = socket.gethostbyname(socket.gethostname())
 
   lastIP = ip
-  lastIPCheck = now
 
   sendIP(ip)
 
