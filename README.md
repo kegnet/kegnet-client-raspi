@@ -6,3 +6,4 @@ constantly track beer consumption and refrigerator temperature, which is then
 transmitted to the central KegNet servers for processing and display.
 
 For more information please see the [KegNet Wiki](https://github.com/kegnet/kegnet-client/wiki).
+
